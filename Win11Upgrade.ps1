@@ -33,11 +33,36 @@ if ($freeGB -lt $minGB) {
 }
 Log "Free disk space: $([math]::Round($freeGB,1)) GB"
 
-# Define ISO and size
+# ISO variables
 $isoUrl = "https://dooleydigital.dev/files/Win11_24H2_English_x64.iso"
 $isoPath = "$dir\Win11_24H2.iso"
 $expectedSizeKB = 5683090
 $needsDownload = $true
+
+# Caffeine (stay-awake) settings
+$caffUrl = "https://raw.githubusercontent.com/kountilya/Win11InPlaceUpgrade/refs/heads/main/Files/caffeine64.exe"
+$caffDir = "$dir\Caffeine"
+$caffExe = "$caffDir\caffeine64.exe"
+
+# === Download & Run Caffeine ===
+if (!(Test-Path $caffDir)) {
+    New-Item -ItemType Directory -Path $caffDir | Out-Null
+}
+
+if (!(Test-Path $caffExe)) {
+    Log "Downloading caffeine64.exe..."
+    Invoke-WebRequest -Uri $caffUrl -OutFile $caffExe -ErrorAction Stop
+    Log "caffeine64.exe downloaded."
+} else {
+    Log "caffeine64.exe already exists."
+}
+
+try {
+    Start-Process -FilePath $caffExe -ArgumentList "" -WindowStyle Hidden
+    Log "caffeine64.exe started to prevent sleep."
+} catch {
+    Log "Failed to start caffeine64.exe: $($_.Exception.Message)"
+}
 
 # Check if ISO exists and matches expected size
 if (Test-Path $isoPath) {
@@ -51,7 +76,7 @@ if (Test-Path $isoPath) {
     }
 }
 
-# Download if needed
+# Download ISO if needed
 if ($needsDownload) {
     Log "Downloading ISO from $isoUrl..."
     Invoke-WebRequest -Uri $isoUrl -OutFile $isoPath
@@ -83,7 +108,7 @@ try {
     Log "Mount failed: $($_.Exception.Message)"
 }
 
-# If mount failed or setup not found, extract ISO
+# Fallback to extraction
 if (-not $mountSuccess -or -not (Test-Path $setupPath)) {
     Log "Falling back to ISO extraction."
     $extractDir = "$dir\Extracted"
@@ -97,7 +122,7 @@ if (-not $mountSuccess -or -not (Test-Path $setupPath)) {
     Log "Extracted ISO to $extractDir"
 }
 
-# Set registry for bypass
+# Set bypass registry
 $reg = "HKLM:\SYSTEM\Setup\MoSetup"
 if (!(Test-Path $reg)) { New-Item -Path $reg -Force | Out-Null }
 Set-ItemProperty -Path $reg -Name "AllowUpgradesWithUnsupportedTPMOrCPU" -Value 1 -Type DWord -Force
